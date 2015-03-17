@@ -1,7 +1,13 @@
 xquery version "1.0-ml";
 
 (:~
- : experimental extension query types
+ : experimental extensions to MarkLogic cts functionality.
+ : Includes new query and lexicon types, and conversion functions for lexicon references.
+ :
+ : &lt;em&gt;
+ :   &lt;strong&gt;Warning: this is experimental software!&lt;/strong&gt;
+ :   This module uses un-supported features of MarkLogic Server, which are subject to modification or removal without notice.
+ : &lt;/em&gt;
  :
  : @author Joe Bryan
  : @version 0.1
@@ -80,6 +86,12 @@ declare %private function ctx:query-term(
       $plan//qry:term-query[ $predicate(qry:annotation) ]/qry:key ))
 };
 
+(:
+ :
+ : extension query type constructors
+ :
+ :)
+
 (: calculate the query term hash key of a root QName :)
 declare %private function ctx:root-element-query-term($qname as xs:QName) as xs:unsignedLong
 {
@@ -88,9 +100,18 @@ declare %private function ctx:root-element-query-term($qname as xs:QName) as xs:
     fn:starts-with(?, "doc-root("))
 };
 
+(:~
+ : returns a `cts:query` matching fragments with a given root QName
+ :)
 declare function ctx:root-element-query($qname as xs:QName) as cts:query
-{ ctx:root-element-query($qname, ()) };
+{
+  ctx:root-element-query($qname, ())
+};
 
+(:~
+ : returns a `cts:query` matching fragments with a given root QName, constrained
+ : by the query param
+ :)
 declare function ctx:root-element-query($qname as xs:QName, $query as cts:query?) as cts:query
 {
   cts:and-query((
@@ -110,9 +131,18 @@ declare %private function ctx:element-child-query-term($qname as xs:QName, $chil
       fn:starts-with(?, "element-child("))
 };
 
+(:~
+ : returns a `cts:query` matching fragments with the given parent/child QNames
+ :)
 declare function ctx:element-child-query($qname as xs:QName, $child as xs:QName) as cts:query
-{ ctx:element-child-query($qname, $child, ()) };
+{
+  ctx:element-child-query($qname, $child, ())
+};
 
+(:~
+ : returns a `cts:query` matching fragments with the given parent/child QNames,
+ : constrained by the query param
+ :)
 declare function ctx:element-child-query(
   $qname as xs:QName,
   $child as xs:QName,
@@ -126,30 +156,6 @@ declare function ctx:element-child-query(
     $query))
 };
 
-declare function ctx:root-QNames() as xs:QName*
-{ ctx:root-QNames((), ()) };
-
-declare function ctx:root-QNames($arg) as xs:QName*
-{
-  let $query :=
-    if ($arg instance of cts:query)
-    then $arg
-    else
-      if ($arg instance of xs:QName)
-      then cts:element-query($arg, cts:and-query(()))
-      else fn:error(xs:QName("UNKNOWN-TYPE"), (xdmp:describe($arg), $arg))
-  return ctx:root-QNames($query, ())
-};
-
-declare function ctx:root-QNames($query as cts:query?, $excluded-roots as xs:QName*) as xs:QName*
-{
-  let $query :=
-    cts:and-query(($query,
-      $excluded-roots ! cts:not-query(ctx:root-element-query(.))))
-  let $root := cts:search(/*, $query, "unfiltered")[1]/fn:node-name()
-  return $root ! (., ctx:root-QNames($query, .))
-};
-
 (: calculate the query term hash key of element/attribute QNames :)
 declare %private function ctx:element-attribute-query-term($qname as xs:QName, $attr as xs:QName) as xs:unsignedLong
 {
@@ -161,9 +167,18 @@ declare %private function ctx:element-attribute-query-term($qname as xs:QName, $
       fn:starts-with(?, "element-attribute("))
 };
 
+(:~
+ : returns a `cts:query` matching fragments with the given element/attribute QNames
+ :)
 declare function ctx:element-attribute-query($qname as xs:QName, $attr as xs:QName) as cts:query
-{ ctx:element-attribute-query($qname, $attr, ()) };
+{
+  ctx:element-attribute-query($qname, $attr, ())
+};
 
+(:~
+ : returns a `cts:query` matching fragments with the given element/attribute QNames,
+ : constrained by the query param
+ :)
 declare function ctx:element-attribute-query(
   $qname as xs:QName,
   $attr as xs:QName,
@@ -176,6 +191,7 @@ declare function ctx:element-attribute-query(
     (: TODO: remove? :)
     $query))
 };
+
 
 (:~
  : returns a `cts:query` matching fragments containing `$path-expression`
@@ -236,6 +252,60 @@ declare function ctx:path-query(
   ))
 };
 
+(:
+ :
+ : pseudo-lexicon functions
+ :
+ :)
+
+(:~
+ : a "pseudo-lexicon" of root-element QNames; returns a sequence of all document-root element QNames
+ :)
+declare function ctx:root-QNames() as xs:QName*
+{
+  ctx:root-QNames((), ())
+};
+
+(:~
+ : a "pseudo-lexicon" of root-element QNames; returns a sequence of document-root element QNames
+ : where document matches `$arg`. (if `$arg` is a QName, matches documents containing an element of that name)
+ :
+ : @param $arg as `cts:query` or `xs:QName`
+ :)
+declare function ctx:root-QNames($arg) as xs:QName*
+{
+  let $query :=
+    if ($arg instance of cts:query)
+    then $arg
+    else
+      if ($arg instance of xs:QName)
+      then cts:element-query($arg, cts:and-query(()))
+      else fn:error(xs:QName("UNKNOWN-TYPE"), (xdmp:describe($arg), $arg))
+  return ctx:root-QNames($query, ())
+};
+
+(:~
+ : a "pseudo-lexicon" of root-QNames; returns a sequence of document-root element QNames
+ : constrained by `$query`, excluding `$excluded-roots`
+ :)
+declare function ctx:root-QNames($query as cts:query?, $excluded-roots as xs:QName*) as xs:QName*
+{
+  let $query :=
+    cts:and-query(($query,
+      $excluded-roots ! cts:not-query(ctx:root-element-query(.))))
+  let $root := cts:search(/*, $query, "unfiltered")[1]/fn:node-name()
+  return $root ! (., ctx:root-QNames($query, .))
+};
+
+(:
+ :
+ : public helper functions
+ :
+ :)
+
+(:~
+ : returns the database-path-namespaces as a sequence of alternating namespace prefixes and URIs
+ :)
 declare function ctx:db-path-namespaces() as xs:string*
 { ctx:db-path-namespaces(xdmp:database()) };
 
@@ -248,6 +318,17 @@ declare function ctx:db-path-namespaces($database-id as xs:unsignedLong) as xs:s
   )
 };
 
+(:
+ :
+ : lexicon reference conversion/constructor functions
+ :
+ :)
+
+(:~
+ : constructs 1-or-more `cts:reference` objects from the given index definition
+ :
+ : @param $node as `element(db:*-index)` (as returned by the admin API)
+ :)
 declare function ctx:resolve-reference-from-index($node) as cts:reference*
 {
   let $options :=
