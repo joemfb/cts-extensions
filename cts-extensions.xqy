@@ -143,9 +143,11 @@ declare function ctx:root-QNames($arg) as xs:QName*
 
 declare function ctx:root-QNames($query as cts:query?, $excluded-roots as xs:QName*) as xs:QName*
 {
-  let $not-query := cts:not-query($excluded-roots ! ctx:root-element-query(.))
-  let $root := fn:node-name( cts:search(/element(), cts:and-query(( $query, $not-query )), "unfiltered")[1] )
-  return $root ! (., ctx:root-QNames($query, ($excluded-roots, .)))
+  let $query :=
+    cts:and-query(($query,
+      $excluded-roots ! cts:not-query(ctx:root-element-query(.))))
+  let $root := cts:search(/*, $query, "unfiltered")[1]/fn:node-name()
+  return $root ! (., ctx:root-QNames($query, .))
 };
 
 (: calculate the query term hash key of element/attribute QNames :)
