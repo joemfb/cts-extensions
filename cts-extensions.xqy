@@ -10,7 +10,7 @@ module namespace ctx = "http://marklogic.com/cts-extensions";
 
 declare namespace db = "http://marklogic.com/xdmp/database";
 declare namespace qry = "http://marklogic.com/cts/query";
-declare namespace idxpath = "http://marklogic.com/indexpath";
+declare namespace err = "http://www.w3.org/2005/xqt-errors";
 
 declare option xdmp:mapping "false";
 
@@ -177,11 +177,63 @@ declare function ctx:element-attribute-query(
     $query))
 };
 
-declare function ctx:path-query($path-expression as xs:string)
+(:~
+ : returns a `cts:query` matching fragments containing `$path-expression`
+ :)
+declare function ctx:path-query($path-expression as xs:string) as cts:query
 {
-  (: and-query too restrictive, this is too permissive, requires more research :)
-  cts:or-query(
-    cts:index-path-keys($path-expression)/idxpath:reindexer-keys/* ! cts:term-query(., 0))
+  ctx:path-query($path-expression, ())
+};
+
+(:~
+ : returns a `cts:query` matching fragments containing `$path-expression`
+ :)
+declare function ctx:path-query($path-expression as xs:string, $namespaces as xs:string*) as cts:query
+{
+  try {
+    cts:and-query(
+      fn:exactly-one(
+        ctx:plan(
+          fn:string-join(ctx:with-namespaces($namespaces) , ""),
+          $path-expression)
+        [../qry:info-trace = "Path is fully searchable."])
+        /qry:and-query/qry:term-query/qry:key ! cts:term-query(.) )
+  }
+  catch err:FORG0005 {
+    fn:error((), "XDMP-UNSEARCHABLE", "Expression is unsearchable: " || $path-expression)
+  }
+};
+
+(:~
+ : returns a `cts:query` matching fragments with values of `$type` in `$path-expression`
+ : (requires a matching path-range-index)
+ :)
+declare function ctx:path-query(
+  $path-expression as xs:string,
+  $scalar-type as xs:string,
+  $collation as xs:string?
+) as cts:query
+{
+  let $value :=
+    switch($scalar-type)
+    case "string" return ""
+    case "anyURI" return xs:anyURI("")
+    case "dateTime" return fn:current-dateTime()
+    case "time" return fn:current-time()
+    case "date" return fn:current-date()
+    case "gYearMonth" return xs:gYearMonth(fn:current-date())
+    case "gYear" return xs:gYear(fn:current-date())
+    case "gMonth" return xs:gMonth(fn:current-date())
+    case "gDay" return xs:gDay(fn:current-date())
+    case "yearMonthDuration" return xs:yearMonthDuration("P1M")
+    case "dayTimeDuration" return xs:dayTimeDuration("P1D")
+    default return
+      if ($scalar-type = $ctx:numeric-scalar-types) then 0
+      else fn:error((), "UNKNOWN_TYPE", $scalar-type)
+  return cts:or-query((
+    cts:path-range-query($path-expression, "=", $value, "collation=" || $collation),
+    cts:path-range-query($path-expression, "!=", $value, "collation=" || $collation)
+  ))
 };
 
 declare function ctx:db-path-namespaces() as xs:string*
