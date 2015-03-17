@@ -12,34 +12,80 @@ declare namespace db = "http://marklogic.com/xdmp/database";
 declare namespace qry = "http://marklogic.com/cts/query";
 declare namespace idxpath = "http://marklogic.com/indexpath";
 
-declare private function ctx:declare-ns($qnames as xs:QName*) as xs:string*
+declare option xdmp:mapping "false";
+
+(:~ numeric lexicon scalar types :)
+declare variable $ctx:numeric-scalar-types as xs:string+ :=
+("int", "unsignedInt", "long", "unsignedLong", "float", "double", "decimal");
+
+(:
+ :
+ : %private helper functions for creating and inspecting query plans
+ :
+ :)
+
+(: creates xquery namespace declarations from sequence of alternating prefixes and URIs :)
+declare %private function ctx:with-namespaces($namespaces as xs:string*) as xs:string*
 {
-  for $qname at $i in $qnames ! fn:namespace-uri-from-QName(.)
-  where $qname ne ""
-  return 'declare namespace _' || fn:string($i) || '= "' || $qname || '";'
+  if (fn:count($namespaces) mod 2 eq 1)
+  then fn:error((), "XDMP-ARG:", "Invalid argument; odd number of namespaces")
+  else
+    for $i in 1 to (fn:count($namespaces) div 2)
+    let $index := $i * 2 - 1
+    return ctx:declare-ns($namespaces[ $index ], $namespaces[ $index + 1 ])
 };
 
-declare private function ctx:create-QName-path($qnames as xs:QName*) as xs:string*
+(: creates xquery namespace declarations based on 1-or-more QNames :)
+declare %private function ctx:declare-ns($qnames as xs:QName*) as xs:string*
 {
   for $qname at $i in $qnames
-  let $prefix := ("_" || fn:string($i) || ":")[fn:namespace-uri-from-QName($qname) ne ""]
+  let $uri := fn:namespace-uri-from-QName($qname)
+  where $uri ne ""
+  return ctx:declare-ns("_" || fn:string($i), $uri)
+};
+
+(: creates xquery namespace declarations :)
+declare %private function ctx:declare-ns($prefix as xs:string, $uri as xs:string) as xs:string
+{
+  'declare namespace ' || $prefix || '= "' || $uri || '";'
+};
+
+(: create a namespace-aware string serialization of 1-or-more QNames :)
+declare %private function ctx:format-QName($qnames as xs:QName*) as xs:string*
+{
+  for $qname at $i in $qnames
+  let $uri := fn:namespace-uri-from-QName($qname)
+  let $prefix := ("_" || fn:string($i) || ":")[$uri ne ""]
   return $prefix || fn:local-name-from-QName($qname)
 };
 
-declare private function ctx:root-element-query-term($qname as xs:QName) as xs:unsignedLong
+(: return the query plan of the eval'd XPath expression :)
+declare %private function ctx:plan($prolog as xs:string?, $query as xs:string) as element(qry:final-plan)
 {
-  let $prolog := ctx:declare-ns($qname)
-  let $query := ctx:create-QName-path($qname)
-  let $plan := xdmp:eval($prolog || "xdmp:plan(/" || $query || ")")/qry:final-plan
-  return fn:exactly-one($plan//qry:term-query[fn:starts-with(qry:annotation, "doc-root(")]/qry:key)/fn:data(.)
+  let $query :=
+    if (fn:starts-with($query, "/")) then $query
+    else "/" || $query
+  return xdmp:eval($prolog || "xdmp:plan(" || $query || ")")/qry:final-plan
 };
 
-declare private function ctx:element-child-query-term($qname as xs:QName, $child as xs:QName) as xs:unsignedLong
+(: return the hash key of the query-plan term where the annotation matches the predicate :)
+declare %private function ctx:query-term(
+  $plan as element(qry:final-plan),
+  $predicate as (function(item()) as xs:boolean)
+) as xs:unsignedLong
 {
-  let $prolog := fn:string-join(ctx:declare-ns(($qname, $child)), "")
-  let $query := fn:string-join(ctx:create-QName-path(($qname, $child)), "/")
-  let $plan := xdmp:eval($prolog || "xdmp:plan(/" || $query || ")")/qry:final-plan
-  return fn:exactly-one($plan//qry:term-query[fn:starts-with(qry:annotation, "element-child(")]/qry:key)/fn:data(.)
+  (: TODO: catch, throw custom error invalid predicate :)
+  fn:data(
+    fn:exactly-one(
+      $plan//qry:term-query[ $predicate(qry:annotation) ]/qry:key ))
+};
+
+(: calculate the query term hash key of a root QName :)
+declare %private function ctx:root-element-query-term($qname as xs:QName) as xs:unsignedLong
+{
+  ctx:query-term(
+    ctx:plan( ctx:declare-ns($qname), ctx:format-QName($qname)),
+    fn:starts-with(?, "doc-root("))
 };
 
 declare function ctx:root-element-query($qname as xs:QName) as cts:query
@@ -53,14 +99,30 @@ declare function ctx:root-element-query($qname as xs:QName, $query as cts:query?
     $query))
 };
 
-declare function ctx:element-child-query($qname as xs:QName, $child as xs:QName)
+(: calculate the query term hash key of parent/child QNames :)
+declare %private function ctx:element-child-query-term($qname as xs:QName, $child as xs:QName) as xs:unsignedLong
+{
+  let $prolog := fn:string-join(ctx:declare-ns(($qname, $child)), "")
+  let $query := fn:string-join(ctx:format-QName(($qname, $child)), "/")
+  return
+    ctx:query-term(
+      ctx:plan($prolog, $query),
+      fn:starts-with(?, "element-child("))
+};
+
+declare function ctx:element-child-query($qname as xs:QName, $child as xs:QName) as cts:query
 { ctx:element-child-query($qname, $child, ()) };
 
-declare function ctx:element-child-query($qname as xs:QName, $child as xs:QName, $query as cts:query?)
+declare function ctx:element-child-query(
+  $qname as xs:QName,
+  $child as xs:QName,
+  $query as cts:query?
+) as cts:query
 {
   cts:and-query((
     cts:term-query(
       ctx:element-child-query-term($qname, $child), 0),
+    (: TODO: should this be wrapped in a cts:element-query? :)
     $query))
 };
 
@@ -86,23 +148,30 @@ declare function ctx:root-QNames($query as cts:query?, $excluded-roots as xs:QNa
   return $root ! (., ctx:root-QNames($query, ($excluded-roots, .)))
 };
 
-declare private function ctx:element-attribute-query-term($qname as xs:QName, $attr as xs:QName) as xs:unsignedLong
+(: calculate the query term hash key of element/attribute QNames :)
+declare %private function ctx:element-attribute-query-term($qname as xs:QName, $attr as xs:QName) as xs:unsignedLong
 {
   let $prolog := fn:string-join(ctx:declare-ns(($qname, $attr)), "")
-  let $query := fn:string-join(ctx:create-QName-path(($qname, $attr)), "/@")
-  let $plan := xdmp:eval($prolog || "xdmp:plan(/" || $query || ")")/qry:final-plan
-  return fn:exactly-one($plan//qry:term-query[fn:starts-with(qry:annotation, "element-attribute(")]/qry:key)/fn:data(.)
+  let $query := fn:string-join(ctx:format-QName(($qname, $attr)), "/@")
+  return
+    ctx:query-term(
+      ctx:plan($prolog, $query),
+      fn:starts-with(?, "element-attribute("))
 };
 
-(: requires further testing; doesn't seem to work in some cases :)
-declare function ctx:element-attribute-query($qname as xs:QName, $attr as xs:QName)
+declare function ctx:element-attribute-query($qname as xs:QName, $attr as xs:QName) as cts:query
 { ctx:element-attribute-query($qname, $attr, ()) };
 
-declare function ctx:element-attribute-query($qname as xs:QName, $attr as xs:QName, $query as cts:query?)
+declare function ctx:element-attribute-query(
+  $qname as xs:QName,
+  $attr as xs:QName,
+  $query as cts:query?
+) as cts:query
 {
   cts:and-query((
     cts:term-query(
       ctx:element-attribute-query-term($qname, $attr), 0),
+    (: TODO: remove? :)
     $query))
 };
 
@@ -130,34 +199,28 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
   let $options :=
   (
     $node/db:scalar-type ! fn:concat("type=", .),
-    if (fn:not($node/db:scalar-type = ("date", "int", "decimal")))
-    then
-      $node/db:collation ! fn:concat("collation=", .)
+    if ($node/db:scalar-type eq "string")
+    then $node/db:collation ! fn:concat("collation=", .)
     else ()
     (:
       TODO:
       $node/db:coordinate-system ! fn:concat("coordinate-system", .)
-      unchecked?,
-      other options?
+      $node/db:point-format ! fn:concat("type", .)
     :)
   )
   return
     typeswitch($node)
       case element(db:range-element-index) return
-        cts:element-reference(
-          for $elem in fn:tokenize($node/db:localname/fn:string(), " ")
-          return fn:QName($node/db:namespace-uri, $elem),
-          $options
-        )
+        for $elem in fn:tokenize($node/db:localname/fn:string(), " ")
+        return cts:element-reference(fn:QName($node/db:namespace-uri, $elem), $options)
       case element(db:range-element-attribute-index) return
-        cts:element-attribute-reference(
-          (: TODO: tokenize names? :)
-          for $elem in $node/db:parent-localname
-          return fn:QName($node/db:parent-namespace-uri, $elem),
-          for $attr in $node/db:localname
-          return fn:QName($node/db:namespace-uri, $attr),
-          $options
-        )
+        for $elem in fn:tokenize($node/db:parent-localname/fn:string(), " ")
+        for $attr in fn:tokenize($node/db:localname/fn:string(), " ")
+        return
+          cts:element-attribute-reference(
+            fn:QName($node/db:parent-namespace-uri, $elem),
+            fn:QName($node/db:namespace-uri, $attr),
+            $options)
       case element(db:range-path-index) return
         xdmp:with-namespaces(
           ctx:db-path-namespaces(),
