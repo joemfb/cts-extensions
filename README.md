@@ -12,7 +12,7 @@
 
 Author:  Joe Bryan
 
-Version:  0.1
+Version:  1.0.0
 
 #### Table of Contents
 

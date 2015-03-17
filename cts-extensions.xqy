@@ -10,7 +10,7 @@ xquery version "1.0-ml";
  : &lt;/em&gt;
  :
  : @author Joe Bryan
- : @version 0.1
+ : @version 1.0.0
  :)
 module namespace ctx = "http://marklogic.com/cts-extensions";
 
