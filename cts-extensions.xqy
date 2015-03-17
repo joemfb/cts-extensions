@@ -289,3 +289,105 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
       case element(cts:geospatial-element-reference) return ()
       default return fn:error((),"Unknown Reference Type", $node)
 };
+
+(:~
+ : constructs a `cts:query` matching fragments that contain a `cts:reference`
+ :
+ : @param $ref as `cts:reference` or `element(cts:*-reference)`
+ :)
+declare function ctx:reference-query($ref) as cts:query
+{
+  let $ref :=
+    if ($ref instance of element())
+    then $ref
+    else document { $ref }/*
+  return
+    typeswitch($ref)
+    case element(cts:element-reference) return
+      cts:element-query(fn:QName($ref/cts:namespace-uri, $ref/cts:localname), cts:and-query(()))
+    case element(cts:element-attribute-reference) return
+      ctx:element-attribute-query(
+        fn:QName($ref/cts:parent-namespace-uri, $ref/cts:parent-localname),
+        fn:QName($ref/cts:namespace-uri, $ref/cts:localname))
+    case element(cts:path-reference) return
+      xdmp:with-namespaces(
+        ctx:db-path-namespaces(),
+        ctx:path-query(
+          $ref/cts:path-expression,
+          $ref/cts:scalar-type,
+          $ref/cts:collation))
+    (: TODO:  :)
+    case element(cts:field-reference) return ()
+    case element(cts:geospatial-attribute-pair-reference) return ()
+    case element(cts:geospatial-element-pair-reference) return ()
+    case element(cts:geospatial-element-child-reference) return ()
+    case element(cts:geospatial-element-reference) return ()
+
+    case element(cts:uri-reference) return
+      cts:and-query(())
+    case element(cts:collection-reference) return
+      fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"cts:collection-reference is semantically meaningless without values", $ref)
+    default return fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $ref)
+};
+
+(:~
+ : constructs an `=` range query from a `cts:reference` and 1-or-more values
+ :
+ : @param $ref as `cts:reference` or `element(cts:*-reference)`
+ :)
+declare function ctx:reference-query($ref, $values as xs:anyAtomicType*) as cts:query
+{
+  ctx:reference-query($ref, "=", $values)
+};
+
+(:~
+ : constructs a range query from a `cts:reference` and 1-or-more values
+ :
+ : @param $ref as `cts:reference` or `element(cts:*-reference)`
+ :)
+declare function ctx:reference-query($ref, $operator as xs:string, $values as xs:anyAtomicType*) as cts:query
+{
+  let $ref :=
+    if ($ref instance of element())
+    then $ref
+    else document { $ref }/*
+  (: TODO :)
+  let $options := (
+    $ref/cts:collation ! fn:concat("collation=", .),
+    $ref/cts:coordinate-system ! fn:concat("coordinate-system", .)
+  )
+  let $constructor :=
+    typeswitch($ref)
+    case element(cts:element-reference) return
+      cts:element-range-query(
+        fn:QName($ref/cts:namespace-uri, $ref/cts:localname), ?, ?, ?)
+    case element(cts:element-attribute-reference) return
+      cts:element-attribute-range-query(
+        fn:QName($ref/cts:parent-namespace-uri, $ref/cts:parent-localname),
+        fn:QName($ref/cts:namespace-uri, $ref/cts:localname), ?, ?, ?)
+    case element(cts:path-reference) return
+      xdmp:with-namespaces(
+        ctx:db-path-namespaces(),
+        cts:path-range-query(
+          $ref/cts:path-expression, ?, ?, ?))
+    case element(cts:field-reference) return
+      cts:field-range-query(
+        $ref/cts:name, ?, ?, ?)
+    case element(cts:uri-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        cts:document-query($values)
+      }
+    case element(cts:collection-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        cts:collection-query($values)
+      }
+    (: TODO:  :)
+    case element(cts:geospatial-attribute-pair-reference) return ()
+    case element(cts:geospatial-element-pair-reference) return ()
+    case element(cts:geospatial-element-child-reference) return ()
+    case element(cts:geospatial-element-reference) return ()
+    default return fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $ref)
+  return $constructor($operator, $values, $options)
+};
