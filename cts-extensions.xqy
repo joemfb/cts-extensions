@@ -325,6 +325,44 @@ declare function ctx:db-path-namespaces($database-id as xs:unsignedLong) as xs:s
  :)
 
 (:~
+ : constructs a map from a `cts:reference` object
+ :
+ : @param $ref as `cts:reference` or `element(cts:*-reference)`
+ :)
+declare function ctx:reference-to-map($ref) as map:map
+{
+  let $ref :=
+    if ($ref instance of element())
+    then $ref
+    else document { $ref }/*
+  return
+    map:new((
+      map:entry("ref-type", fn:local-name($ref)),
+      for $x in $ref/*
+      return map:entry(fn:local-name($x), $x/fn:string())))
+};
+
+(:~
+ : constructs a `cts:reference` object from a map
+ :)
+declare function ctx:reference-from-map($map as map:map) as cts:reference?
+{
+  let $ref-type := map:get($map, "ref-type")
+  return
+    if (fn:exists($ref-type))
+    then
+      cts:reference-parse(
+        element { "cts:" || $ref-type } {
+          for $key in map:keys($map)[. ne "ref-type"]
+          return
+            element { "cts:" || $key } {
+              map:get($map, $key)
+            }
+        })
+    else ()
+};
+
+(:~
  : constructs 1-or-more `cts:reference` objects from the given index definition
  :
  : @param $node as `element(db:*-index)` (as returned by the admin API)
