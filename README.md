@@ -146,7 +146,7 @@ ctx:path-query($path-expression as xs:string, $namespaces as xs:string*) as cts:
 
 ##### <a name="func_ctx_path-query_3"/> ctx:path-query\#3
 ```xquery
-ctx:path-query($path-expression as xs:string,  $scalar-type as xs:string,  $collation as xs:string) as cts:query
+ctx:path-query($path-expression as xs:string,  $scalar-type as xs:string,  $collation as xs:string?) as cts:query
 ```
 
  returns a `cts:query` matching fragments with values of `$type` in `$path-expression`
@@ -156,7 +156,7 @@ ctx:path-query($path-expression as xs:string,  $scalar-type as xs:string,  $coll
 
 * $path-expression as `xs:string`
 * $scalar-type as `xs:string`
-* $collation as `xs:string`
+* $collation as `xs:string?`
 
 ###### returns `cts:query`
 
