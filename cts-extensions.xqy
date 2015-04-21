@@ -92,6 +92,7 @@ declare %private function ctx:default-value-for-scalar-type($scalar-type as xs:s
   switch($scalar-type)
   case "string" return ""
   case "anyURI" return xs:anyURI("")
+  case "point" return cts:box(-90, -180, 90, 180)
   case "dateTime" return fn:current-dateTime()
   case "time" return fn:current-time()
   case "date" return fn:current-date()
@@ -396,17 +397,13 @@ declare function ctx:reference-from-map($map as map:map) as cts:reference?
  :)
 declare function ctx:resolve-reference-from-index($node) as cts:reference*
 {
-  let $options :=
-  (
+  let $options := (
     $node/db:scalar-type ! fn:concat("type=", .),
+    $node/db:coordinate-system ! fn:concat("coordinate-system=", .),
     if ($node/db:scalar-type eq "string")
-    then $node/db:collation ! fn:concat("collation=", .)
+    then
+      $node/db:collation ! fn:concat("collation=", .)
     else ()
-    (:
-      TODO:
-      $node/db:coordinate-system ! fn:concat("coordinate-system", .)
-      $node/db:point-format ! fn:concat("type", .)
-    :)
   )
   return
     typeswitch($node)
@@ -414,8 +411,8 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
         for $elem in fn:tokenize($node/db:localname/fn:string(), " ")
         return cts:element-reference(fn:QName($node/db:namespace-uri, $elem), $options)
       case element(db:range-element-attribute-index) return
-        for $elem in fn:tokenize($node/db:parent-localname/fn:string(), " ")
-        for $attr in fn:tokenize($node/db:localname/fn:string(), " ")
+        for $elem in fn:tokenize($node/db:parent-localname/fn:string(), " "),
+            $attr in fn:tokenize($node/db:localname/fn:string(), " ")
         return
           cts:element-attribute-reference(
             fn:QName($node/db:parent-namespace-uri, $elem),
@@ -427,13 +424,45 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
           cts:path-reference($node/db:path-expression, $options))
       case element(db:range-field-index) return
         cts:field-reference($node/db:field-name, $options)
-      (: TODO: process other reference types :)
-      case element(cts:geospatial-attribute-pair-reference) return ()
-      case element(cts:geospatial-element-pair-reference) return ()
-      case element(cts:geospatial-element-child-reference) return ()
-      case element(cts:geospatial-element-reference) return ()
-      (: Note: cts:uri-reference() and cts:collection-reference() are meaningless here :)
-      default return fn:error((),"Unknown Reference Type", $node)
+      case element(db:geospatial-element-attribute-pair-index) return
+        for $elem in fn:tokenize($node/db:parent-localname/fn:string(), " "),
+            $lat in fn:tokenize($node/db:latitude-localname/fn:string(), " "),
+            $lon in fn:tokenize($node/db:longitude-localname/fn:string(), " ")
+        return
+          cts:geospatial-attribute-pair-reference(
+            fn:QName($node/db:parent-namespace-uri, $elem),
+            fn:QName($node/db:latitude-namespace-uri, $lat),
+            fn:QName($node/db:longitude-namespace-uri, $lon),
+            $options)
+      case element(db:geospatial-element-child-index) return
+        for $parent in fn:tokenize($node/db:parent-localname/fn:string(), " "),
+            $elem in fn:tokenize($node/db:localname/fn:string(), " ")
+        return
+          cts:geospatial-element-child-reference(
+            fn:QName($node/db:parent-namespace-uri, $parent),
+            fn:QName($node/db:namespace-uri, $elem),
+            $options)
+      case element(db:geospatial-element-pair-index) return
+        for $elem in fn:tokenize($node/db:parent-localname/fn:string(), " "),
+            $lat in fn:tokenize($node/db:latitude-localname/fn:string(), " "),
+            $lon in fn:tokenize($node/db:longitude-localname/fn:string(), " ")
+        return
+          cts:geospatial-element-pair-reference(
+            fn:QName($node/db:parent-namespace-uri, $elem),
+            fn:QName($node/db:latitude-namespace-uri, $lat),
+            fn:QName($node/db:longitude-namespace-uri, $lon),
+            $options)
+      case element(db:geospatial-element-index) return
+        for $elem in fn:tokenize($node/db:localname/fn:string(), " ")
+        return
+          cts:geospatial-element-reference(
+            fn:QName($node/db:namespace-uri, $elem),
+            $options)
+      case element(db:geospatial-path-index) return
+        xdmp:with-namespaces(
+          ctx:db-path-namespaces(),
+          cts:geospatial-path-reference($node/db:path-expression, $options))
+      default return fn:error((),"Unknown Index Type", $node)
 };
 
 (:~
@@ -467,12 +496,16 @@ declare function ctx:reference-query($ref) as cts:query
         $ref/cts:field-name,
         $ref/cts:scalar-type,
         $ref/cts:collation)
-    (: TODO:  :)
-    case element(cts:geospatial-attribute-pair-reference) return ()
-    case element(cts:geospatial-element-pair-reference) return ()
-    case element(cts:geospatial-element-child-reference) return ()
-    case element(cts:geospatial-element-reference) return ()
-
+    case element(cts:geospatial-attribute-pair-reference) return
+      ctx:reference-query($ref, ctx:default-value-for-scalar-type($ref/cts:scalar-type))
+    case element(cts:geospatial-element-pair-reference) return
+      ctx:reference-query($ref, ctx:default-value-for-scalar-type($ref/cts:scalar-type))
+    case element(cts:geospatial-element-child-reference) return
+      ctx:reference-query($ref, ctx:default-value-for-scalar-type($ref/cts:scalar-type))
+    case element(cts:geospatial-element-reference) return
+      ctx:reference-query($ref, ctx:default-value-for-scalar-type($ref/cts:scalar-type))
+    case element(cts:geospatial-path-reference) return
+      ctx:reference-query($ref, ctx:default-value-for-scalar-type($ref/cts:scalar-type))
     case element(cts:uri-reference) return
       cts:and-query(())
     case element(cts:collection-reference) return
@@ -501,10 +534,9 @@ declare function ctx:reference-query($ref, $operator as xs:string, $values as xs
     if ($ref instance of element())
     then $ref
     else document { $ref }/*
-  (: TODO :)
   let $options := (
     $ref/cts:collation ! fn:concat("collation=", .),
-    $ref/cts:coordinate-system ! fn:concat("coordinate-system", .)
+    $ref/cts:coordinate-system ! fn:concat("coordinate-system=", .)
   )
   let $constructor :=
     typeswitch($ref)
@@ -527,6 +559,53 @@ declare function ctx:reference-query($ref, $operator as xs:string, $values as xs
     case element(cts:field-reference) return
       cts:field-range-query(
         $ref/cts:field-name, ?, ?, ?)
+    case element(cts:geospatial-attribute-pair-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        cts:element-attribute-pair-geospatial-query(
+          fn:QName($ref/cts:parent-namespace-uri, $ref/cts:parent-localname),
+          fn:QName($ref/cts:latitude-namespace-uri, $ref/cts:latitude-localname),
+          fn:QName($ref/cts:longitude-namespace-uri, $ref/cts:longitude-localname),
+          $values,
+          $options)
+      }
+    case element(cts:geospatial-element-pair-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        cts:element-pair-geospatial-query(
+          fn:QName($ref/cts:parent-namespace-uri, $ref/cts:parent-localname),
+          fn:QName($ref/cts:latitude-namespace-uri, $ref/cts:latitude-localname),
+          fn:QName($ref/cts:longitude-namespace-uri, $ref/cts:longitude-localname),
+          $values,
+          $options)
+      }
+    case element(cts:geospatial-element-child-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        cts:element-child-geospatial-query(
+          fn:QName($ref/cts:parent-namespace-uri, $ref/cts:parent-localname),
+          fn:QName($ref/cts:namespace-uri, $ref/cts:localname),
+          $values,
+          $options)
+      }
+    case element(cts:geospatial-element-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        cts:element-geospatial-query(
+          fn:QName($ref/cts:namespace-uri, $ref/cts:localname),
+          $values,
+          $options)
+      }
+    case element(cts:geospatial-path-reference) return
+      (: TODO: check operator (handle = / !=, error otherwise) :)
+      function($operator, $values, $options) {
+        (: the combination of this closure and xdmp:with-namespaces creates problems with referencing the path :)
+        let $path := $ref/cts:path-expression
+        return
+          xdmp:with-namespaces(
+            ctx:db-path-namespaces(),
+            cts:path-geospatial-query($path, $values, $options))
+      }
     case element(cts:uri-reference) return
       (: TODO: check operator (handle = / !=, error otherwise) :)
       function($operator, $values, $options) {
@@ -537,11 +616,6 @@ declare function ctx:reference-query($ref, $operator as xs:string, $values as xs
       function($operator, $values, $options) {
         cts:collection-query($values)
       }
-    (: TODO:  :)
-    case element(cts:geospatial-attribute-pair-reference) return ()
-    case element(cts:geospatial-element-pair-reference) return ()
-    case element(cts:geospatial-element-child-reference) return ()
-    case element(cts:geospatial-element-reference) return ()
     default return fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $ref)
   return $constructor($operator, $values, $options)
 };
