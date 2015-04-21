@@ -1,6 +1,6 @@
 ### cts-extensions
 
-##### xquery library module: http://marklogic.com/cts-extensions
+##### xquery library module: `http://marklogic.com/cts-extensions`
 
  experimental extensions to MarkLogic cts functionality.
  Includes new query and lexicon types, and conversion functions for lexicon references.
@@ -17,7 +17,7 @@ Version:  1.0.0
 #### Table of Contents
 
 * Variables: [$ctx:numeric-scalar-types](#var_ctx_numeric-scalar-types)
-* Functions: [ctx:root-element-query\#1](#func_ctx_root-element-query_1), [ctx:root-element-query\#2](#func_ctx_root-element-query_2), [ctx:element-child-query\#2](#func_ctx_element-child-query_2), [ctx:element-child-query\#3](#func_ctx_element-child-query_3), [ctx:element-attribute-query\#2](#func_ctx_element-attribute-query_2), [ctx:element-attribute-query\#3](#func_ctx_element-attribute-query_3), [ctx:path-query\#1](#func_ctx_path-query_1), [ctx:path-query\#2](#func_ctx_path-query_2), [ctx:path-query\#3](#func_ctx_path-query_3), [ctx:root-QNames\#0](#func_ctx_root-QNames_0), [ctx:root-QNames\#1](#func_ctx_root-QNames_1), [ctx:root-QNames\#2](#func_ctx_root-QNames_2), [ctx:db-path-namespaces\#0](#func_ctx_db-path-namespaces_0), [ctx:db-path-namespaces\#1](#func_ctx_db-path-namespaces_1), [ctx:reference-to-map\#1](#func_ctx_reference-to-map_1), [ctx:reference-from-map\#1](#func_ctx_reference-from-map_1), [ctx:resolve-reference-from-index\#1](#func_ctx_resolve-reference-from-index_1), [ctx:reference-query\#1](#func_ctx_reference-query_1), [ctx:reference-query\#2](#func_ctx_reference-query_2), [ctx:reference-query\#3](#func_ctx_reference-query_3)
+* Functions: [ctx:root-element-query\#1](#func_ctx_root-element-query_1), [ctx:root-element-query\#2](#func_ctx_root-element-query_2), [ctx:element-child-query\#2](#func_ctx_element-child-query_2), [ctx:element-child-query\#3](#func_ctx_element-child-query_3), [ctx:element-attribute-query\#2](#func_ctx_element-attribute-query_2), [ctx:element-attribute-query\#3](#func_ctx_element-attribute-query_3), [ctx:path-query\#1](#func_ctx_path-query_1), [ctx:path-query\#2](#func_ctx_path-query_2), [ctx:path-query\#3](#func_ctx_path-query_3), [ctx:field-query\#3](#func_ctx_field-query_3), [ctx:root-QNames\#0](#func_ctx_root-QNames_0), [ctx:root-QNames\#1](#func_ctx_root-QNames_1), [ctx:root-QNames\#2](#func_ctx_root-QNames_2), [ctx:db-path-namespaces\#0](#func_ctx_db-path-namespaces_0), [ctx:db-path-namespaces\#1](#func_ctx_db-path-namespaces_1), [ctx:reference-to-map\#1](#func_ctx_reference-to-map_1), [ctx:reference-from-map\#1](#func_ctx_reference-from-map_1), [ctx:resolve-reference-from-index\#1](#func_ctx_resolve-reference-from-index_1), [ctx:reference-query\#1](#func_ctx_reference-query_1), [ctx:reference-query\#2](#func_ctx_reference-query_2), [ctx:reference-query\#3](#func_ctx_reference-query_3)
 
 #### Variables
 
@@ -155,6 +155,22 @@ ctx:path-query($path-expression as xs:string,  $scalar-type as xs:string,  $coll
 ###### params
 
 * $path-expression as `xs:string`
+* $scalar-type as `xs:string`
+* $collation as `xs:string?`
+
+###### returns `cts:query`
+
+##### <a name="func_ctx_field-query_3"/> ctx:field-query\#3
+```xquery
+ctx:field-query($field-name as xs:string,  $scalar-type as xs:string,  $collation as xs:string?) as cts:query
+```
+
+ returns a `cts:query` matching fragments with values of `$type` in `$field-name`
+ (requires a matching path-range-index)
+
+###### params
+
+* $field-name as `xs:string`
 * $scalar-type as `xs:string`
 * $collation as `xs:string?`
 

@@ -86,6 +86,26 @@ declare %private function ctx:query-term(
       $plan//qry:term-query[ $predicate(qry:annotation) ]/qry:key ))
 };
 
+(: get a default value for the scalar-type :)
+declare %private function ctx:default-value-for-scalar-type($scalar-type as xs:string)
+{
+  switch($scalar-type)
+  case "string" return ""
+  case "anyURI" return xs:anyURI("")
+  case "dateTime" return fn:current-dateTime()
+  case "time" return fn:current-time()
+  case "date" return fn:current-date()
+  case "gYearMonth" return xs:gYearMonth(fn:current-date())
+  case "gYear" return xs:gYear(fn:current-date())
+  case "gMonth" return xs:gMonth(fn:current-date())
+  case "gDay" return xs:gDay(fn:current-date())
+  case "yearMonthDuration" return xs:yearMonthDuration("P1M")
+  case "dayTimeDuration" return xs:dayTimeDuration("P1D")
+  default return
+    if ($scalar-type = $ctx:numeric-scalar-types) then 0
+    else fn:error((), "UNKNOWN_TYPE", $scalar-type)
+};
+
 (:
  :
  : extension query type constructors
@@ -230,25 +250,31 @@ declare function ctx:path-query(
   $collation as xs:string?
 ) as cts:query
 {
-  let $value :=
-    switch($scalar-type)
-    case "string" return ""
-    case "anyURI" return xs:anyURI("")
-    case "dateTime" return fn:current-dateTime()
-    case "time" return fn:current-time()
-    case "date" return fn:current-date()
-    case "gYearMonth" return xs:gYearMonth(fn:current-date())
-    case "gYear" return xs:gYear(fn:current-date())
-    case "gMonth" return xs:gMonth(fn:current-date())
-    case "gDay" return xs:gDay(fn:current-date())
-    case "yearMonthDuration" return xs:yearMonthDuration("P1M")
-    case "dayTimeDuration" return xs:dayTimeDuration("P1D")
-    default return
-      if ($scalar-type = $ctx:numeric-scalar-types) then 0
-      else fn:error((), "UNKNOWN_TYPE", $scalar-type)
+  let $value := ctx:default-value-for-scalar-type($scalar-type)
+  let $options := ( ("collation=" || $collation)[$collation] )
+  return xdmp:with-namespaces(
+    ctx:db-path-namespaces(),
+    cts:or-query((
+      cts:path-range-query($path-expression, "=", $value, $options),
+      cts:path-range-query($path-expression, "!=", $value, $options)))
+  )
+};
+
+(:~
+ : returns a `cts:query` matching fragments with values of `$type` in `$field-name`
+ : (requires a matching path-range-index)
+ :)
+declare function ctx:field-query(
+  $field-name as xs:string,
+  $scalar-type as xs:string,
+  $collation as xs:string?
+) as cts:query
+{
+  let $value := ctx:default-value-for-scalar-type($scalar-type)
+  let $options := ( ("collation=" || $collation)[$collation] )
   return cts:or-query((
-    cts:path-range-query($path-expression, "=", $value, "collation=" || $collation),
-    cts:path-range-query($path-expression, "!=", $value, "collation=" || $collation)
+    cts:field-range-query($field-name, "=", $value, $options),
+    cts:field-range-query($field-name, "!=", $value, $options)
   ))
 };
 
@@ -293,7 +319,8 @@ declare function ctx:root-QNames($query as cts:query?, $excluded-roots as xs:QNa
   let $query :=
     cts:and-query(($query,
       $excluded-roots ! cts:not-query(ctx:root-element-query(.))))
-  let $root := cts:search(/*, $query, "unfiltered")[1]/fn:node-name()
+  (: TODO: ml-8  cts:unordered() :)
+  let $root := cts:search(/, $query, ("unfiltered", "score-zero"))[1]/*/fn:node-name()
   return $root ! (., ctx:root-QNames($query, .))
 };
 
@@ -398,14 +425,14 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
         xdmp:with-namespaces(
           ctx:db-path-namespaces(),
           cts:path-reference($node/db:path-expression, $options))
+      case element(db:range-field-index) return
+        cts:field-reference($node/db:field-name, $options)
       (: TODO: process other reference types :)
-      case element(cts:field-reference) return ()
-      case element(cts:uri-reference) return ()
-      case element(cts:collection-reference) return ()
       case element(cts:geospatial-attribute-pair-reference) return ()
       case element(cts:geospatial-element-pair-reference) return ()
       case element(cts:geospatial-element-child-reference) return ()
       case element(cts:geospatial-element-reference) return ()
+      (: Note: cts:uri-reference() and cts:collection-reference() are meaningless here :)
       default return fn:error((),"Unknown Reference Type", $node)
 };
 
@@ -435,8 +462,12 @@ declare function ctx:reference-query($ref) as cts:query
           $ref/cts:path-expression,
           $ref/cts:scalar-type,
           $ref/cts:collation))
+    case element(cts:field-reference) return
+      ctx:field-query(
+        $ref/cts:field-name,
+        $ref/cts:scalar-type,
+        $ref/cts:collation)
     (: TODO:  :)
-    case element(cts:field-reference) return ()
     case element(cts:geospatial-attribute-pair-reference) return ()
     case element(cts:geospatial-element-pair-reference) return ()
     case element(cts:geospatial-element-child-reference) return ()
@@ -485,13 +516,17 @@ declare function ctx:reference-query($ref, $operator as xs:string, $values as xs
         fn:QName($ref/cts:parent-namespace-uri, $ref/cts:parent-localname),
         fn:QName($ref/cts:namespace-uri, $ref/cts:localname), ?, ?, ?)
     case element(cts:path-reference) return
-      xdmp:with-namespaces(
-        ctx:db-path-namespaces(),
-        cts:path-range-query(
-          $ref/cts:path-expression, ?, ?, ?))
+      function($operator, $values, $options) {
+        (: the combination of this closure and xdmp:with-namespaces creates problems with referencing the path :)
+        let $path := $ref/cts:path-expression
+        return
+          xdmp:with-namespaces(
+            ctx:db-path-namespaces(),
+            cts:path-range-query($path, $operator, $values, $options))
+      }
     case element(cts:field-reference) return
       cts:field-range-query(
-        $ref/cts:name, ?, ?, ?)
+        $ref/cts:field-name, ?, ?, ?)
     case element(cts:uri-reference) return
       (: TODO: check operator (handle = / !=, error otherwise) :)
       function($operator, $values, $options) {
