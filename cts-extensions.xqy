@@ -21,8 +21,16 @@ declare namespace err = "http://www.w3.org/2005/xqt-errors";
 declare option xdmp:mapping "false";
 
 (:~ numeric lexicon scalar types :)
-declare variable $ctx:numeric-scalar-types as xs:string+ :=
-("int", "unsignedInt", "long", "unsignedLong", "float", "double", "decimal");
+declare variable $ctx:numeric-scalar-types as xs:string+ := (
+  "int", "unsignedInt", "long", "unsignedLong", "float", "double", "decimal"
+);
+
+declare %private variable $ctx:search-options := (
+  "unfiltered", "score-zero",
+  if (fn:function-available("cts:unordered"))
+  then fn:function-lookup(xs:QName("cts:unordered"), 0)()
+  else ()
+);
 
 (:
  :
@@ -320,8 +328,7 @@ declare function ctx:root-QNames($query as cts:query?, $excluded-roots as xs:QNa
   let $query :=
     cts:and-query(($query,
       $excluded-roots ! cts:not-query(ctx:root-element-query(.))))
-  (: TODO: ml-8  cts:unordered() :)
-  let $root := cts:search(/, $query, ("unfiltered", "score-zero"))[1]/*/fn:node-name()
+  let $root := cts:search(/, $query, $ctx:search-options)[1]/*/fn:node-name()
   return $root ! (., ctx:root-QNames($query, .))
 };
 
