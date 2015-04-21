@@ -90,18 +90,18 @@ declare %private function ctx:query-term(
 declare %private function ctx:default-value-for-scalar-type($scalar-type as xs:string)
 {
   switch($scalar-type)
-  case "string" return ""
-  case "anyURI" return xs:anyURI("")
-  case "point" return cts:box(-90, -180, 90, 180)
-  case "dateTime" return fn:current-dateTime()
-  case "time" return fn:current-time()
-  case "date" return fn:current-date()
-  case "gYearMonth" return xs:gYearMonth(fn:current-date())
-  case "gYear" return xs:gYear(fn:current-date())
-  case "gMonth" return xs:gMonth(fn:current-date())
-  case "gDay" return xs:gDay(fn:current-date())
+  case "string"            return ""
+  case "anyURI"            return xs:anyURI("")
+  case "dateTime"          return xs:dateTime("1970-01-01T00:00:00Z")
+  case "time"              return xs:time("00:00:00Z")
+  case "date"              return xs:date("1970-01-01")
+  case "gYearMonth"        return xs:gYearMonth("1970-01")
+  case "gYear"             return xs:gYear("1970")
+  case "gMonth"            return xs:gMonth("--01")
+  case "gDay"              return xs:gDay("---01")
+  case "dayTimeDuration"   return xs:dayTimeDuration("P1D")
   case "yearMonthDuration" return xs:yearMonthDuration("P1M")
-  case "dayTimeDuration" return xs:dayTimeDuration("P1D")
+  case "point"             return cts:box(-90, -180, 90, 180)
   default return
     if ($scalar-type = $ctx:numeric-scalar-types) then 0
     else fn:error((), "UNKNOWN_TYPE", $scalar-type)
