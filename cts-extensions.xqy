@@ -383,6 +383,34 @@ declare function ctx:reference-from-map($map as map:map) as cts:reference?
     else ()
 };
 
+(:~ returns a string alias describing a `cts:reference object :)
+declare function ctx:reference-alias($reference as cts:reference) as xs:string
+{
+  let $node := document { $reference }/*
+  return
+    typeswitch($reference)
+    case cts:uri-reference return "uri"
+    case cts:collection-reference return "collection"
+    case cts:element-reference return $node/cts:localname
+    case cts:element-attribute-reference return
+      $node/cts:parent-localname || "/@" || $node/cts:localname
+    case cts:path-reference return $node/cts:path-expression
+    case cts:field-reference return $node/cts:field-name
+    case cts:geospatial-element-attribute-pair-reference return
+      $node/cts:parent-localname ||
+        "/(lat=@" || $node/cts:latitude-localname ||
+        ",lon=@" || $node/cts:longitude-localname || ")"
+    case cts:geospatial-element-pair-reference return
+      $node/cts:parent-localname ||
+        "/(lat=" || $node/cts:latitude-localname ||
+        ",lon=" || $node/cts:longitude-localname || ")"
+    case cts:geospatial-element-child-reference return
+      $node/cts:parent-localname || "/" || $node/cts:localname
+    case cts:geospatial-element-reference return $node/cts:localname
+    case cts:geospatial-path-reference return $node/cts:path-expression
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)
+};
+
 (:~
  : constructs 1-or-more `cts:reference` objects from the given index definition
  :
