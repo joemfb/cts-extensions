@@ -390,6 +390,24 @@ declare function ctx:reference-from-map($map as map:map) as cts:reference?
     else ()
 };
 
+declare %private function ctx:json-reference-alias(
+  $reference as cts:reference,
+  $node as element()
+) as xs:string
+{
+  xdmp:value('
+    typeswitch($reference)
+    case cts:json-property-reference return $node/cts:property
+    case cts:geospatial-json-property-pair-reference return
+      $node/cts:parent-property ||
+        "/(lat=" || $node/cts:latitude-property ||
+        ",lon=" || $node/cts:longitude-property || ")"
+    case cts:geospatial-json-property-child-reference return
+      $node/cts:parent-property || "/" || $node/cts:child-property
+    case cts:geospatial-json-property-reference return $node/cts:property
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)')
+};
+
 (:~ returns a string alias describing a `cts:reference object :)
 declare function ctx:reference-alias($reference as cts:reference) as xs:string
 {
@@ -415,7 +433,10 @@ declare function ctx:reference-alias($reference as cts:reference) as xs:string
       $node/cts:parent-localname || "/" || $node/cts:localname
     case cts:geospatial-element-reference return $node/cts:localname
     case cts:geospatial-path-reference return $node/cts:path-expression
-    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)
+    default return
+      if (fn:type-available("cts:json-property-reference"))
+      then ctx:json-reference-alias($reference, $node)
+      else fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)
 };
 
 (:~
@@ -493,6 +514,24 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
       default return fn:error((),"Unknown Index Type", $node)
 };
 
+declare %private function ctx:json-reference-query(
+  $reference as cts:reference,
+  $node as element()
+) as cts:query
+{
+  xdmp:value('
+    typeswitch($reference)
+    case cts:json-property-reference return
+      cts:element-query(xs:QName($node/cts:property), cts:and-query(()))
+    case cts:geospatial-json-property-pair-reference return
+       ctx:reference-query($reference, ctx:default-value-for-scalar-type($node/cts:scalar-type))
+    case cts:geospatial-json-property-child-reference return
+       ctx:reference-query($reference, ctx:default-value-for-scalar-type($node/cts:scalar-type))
+    case cts:geospatial-json-property-reference return
+       ctx:reference-query($reference, ctx:default-value-for-scalar-type($node/cts:scalar-type))
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)')
+};
+
 (:~ constructs a `cts:query` matching fragments that contain a `cts:reference` :)
 declare function ctx:reference-query($reference as cts:reference) as cts:query
 {
@@ -532,7 +571,10 @@ declare function ctx:reference-query($reference as cts:reference) as cts:query
       cts:and-query(())
     case cts:collection-reference return
       fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"cts:collection-reference is semantically meaningless without values", $reference)
-    default return fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $reference)
+    default return
+      if (fn:type-available("cts:json-property-reference"))
+      then ctx:json-reference-query($reference, $node)
+      else fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $reference)
 };
 
 (:~ constructs an `=` range query from a `cts:reference` and 1-or-more values :)
@@ -545,6 +587,52 @@ declare %private function ctx:assert-equal($items, $base-items, $msg)
 {
   if ($items = $base-items) then ()
   else fn:error((), "NOT_EQUAL", $msg)
+};
+
+declare %private function ctx:json-reference-query(
+  $reference as cts:reference,
+  $node as element(),
+  $operator as xs:string,
+  $values as xs:anyAtomicType*,
+  $options as xs:anyAtomicType*
+) as cts:query
+{
+  xdmp:value('
+    typeswitch($reference)
+    case cts:json-property-reference return
+      cts:json-property-range-query(
+        $node/cts:property,
+        $operator,
+        $values,
+        $options)
+    case cts:geospatial-json-property-pair-reference return (
+      (: TODO: not-query for != ? :)
+      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
+      cts:json-property-pair-geospatial-query(
+        $node/cts:parent-property,
+        $node/cts:latitude-property,
+        $node/cts:longitude-property,
+        $values,
+        $options)
+    )
+    case cts:geospatial-json-property-child-reference return (
+      (: TODO: not-query for != ? :)
+      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
+      cts:json-property-child-geospatial-query(
+        $node/cts:parent-property,
+        $node/cts:child-property,
+        $values,
+        $options)
+    )
+    case cts:geospatial-json-property-reference return (
+      (: TODO: not-query for != ? :)
+      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
+      cts:json-property-geospatial-query(
+        $node/cts:property,
+        $values,
+        $options)
+    )
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)')
 };
 
 (:~ constructs a range query from a `cts:reference` and 1-or-more values :)
@@ -646,5 +734,8 @@ declare function ctx:reference-query(
       ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
       cts:collection-query($values)
     )
-    default return fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $reference)
+    default return
+      if (fn:type-available("cts:json-property-reference"))
+      then ctx:json-reference-query($reference, $node, $operator, $values, $options)
+      else fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $reference)
 };
