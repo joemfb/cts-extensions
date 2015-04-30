@@ -12,12 +12,12 @@
 
 Author:  Joe Bryan
 
-Version:  1.0.0
+Version:  1.1.0
 
 #### Table of Contents
 
 * Variables: [$ctx:numeric-scalar-types](#var_ctx_numeric-scalar-types)
-* Functions: [ctx:root-element-query\#1](#func_ctx_root-element-query_1), [ctx:root-element-query\#2](#func_ctx_root-element-query_2), [ctx:element-child-query\#2](#func_ctx_element-child-query_2), [ctx:element-child-query\#3](#func_ctx_element-child-query_3), [ctx:element-attribute-query\#2](#func_ctx_element-attribute-query_2), [ctx:element-attribute-query\#3](#func_ctx_element-attribute-query_3), [ctx:path-query\#1](#func_ctx_path-query_1), [ctx:path-query\#2](#func_ctx_path-query_2), [ctx:path-query\#3](#func_ctx_path-query_3), [ctx:field-query\#3](#func_ctx_field-query_3), [ctx:root-QNames\#0](#func_ctx_root-QNames_0), [ctx:root-QNames\#1](#func_ctx_root-QNames_1), [ctx:root-QNames\#2](#func_ctx_root-QNames_2), [ctx:db-path-namespaces\#0](#func_ctx_db-path-namespaces_0), [ctx:db-path-namespaces\#1](#func_ctx_db-path-namespaces_1), [ctx:reference-to-map\#1](#func_ctx_reference-to-map_1), [ctx:reference-from-map\#1](#func_ctx_reference-from-map_1), [ctx:resolve-reference-from-index\#1](#func_ctx_resolve-reference-from-index_1), [ctx:reference-query\#1](#func_ctx_reference-query_1), [ctx:reference-query\#2](#func_ctx_reference-query_2), [ctx:reference-query\#3](#func_ctx_reference-query_3)
+* Functions: [ctx:root-element-query\#1](#func_ctx_root-element-query_1), [ctx:root-element-query\#2](#func_ctx_root-element-query_2), [ctx:element-child-query\#2](#func_ctx_element-child-query_2), [ctx:element-child-query\#3](#func_ctx_element-child-query_3), [ctx:element-attribute-query\#2](#func_ctx_element-attribute-query_2), [ctx:element-attribute-query\#3](#func_ctx_element-attribute-query_3), [ctx:path-query\#1](#func_ctx_path-query_1), [ctx:path-query\#2](#func_ctx_path-query_2), [ctx:path-query\#3](#func_ctx_path-query_3), [ctx:field-query\#3](#func_ctx_field-query_3), [ctx:root-QNames\#0](#func_ctx_root-QNames_0), [ctx:root-QNames\#1](#func_ctx_root-QNames_1), [ctx:root-QNames\#2](#func_ctx_root-QNames_2), [ctx:db-path-namespaces\#0](#func_ctx_db-path-namespaces_0), [ctx:db-path-namespaces\#1](#func_ctx_db-path-namespaces_1), [ctx:reference-to-map\#1](#func_ctx_reference-to-map_1), [ctx:reference-from-map\#1](#func_ctx_reference-from-map_1), [ctx:reference-alias\#1](#func_ctx_reference-alias_1), [ctx:resolve-reference-from-index\#1](#func_ctx_resolve-reference-from-index_1), [ctx:reference-query\#1](#func_ctx_reference-query_1), [ctx:reference-query\#2](#func_ctx_reference-query_2), [ctx:reference-query\#3](#func_ctx_reference-query_3)
 
 #### Variables
 
@@ -236,14 +236,14 @@ ctx:db-path-namespaces($database-id as xs:unsignedLong) as xs:string*
 
 ##### <a name="func_ctx_reference-to-map_1"/> ctx:reference-to-map\#1
 ```xquery
-ctx:reference-to-map($ref) as map:map
+ctx:reference-to-map($reference as cts:reference) as map:map
 ```
 
  constructs a map from a `cts:reference` object
 
 ###### params
 
-* $ref as `cts:reference` or `element(cts:*-reference)`
+* $reference as `cts:reference`
 
 ###### returns `map:map`
 
@@ -260,6 +260,19 @@ ctx:reference-from-map($map as map:map) as cts:reference?
 
 ###### returns `cts:reference?`
 
+##### <a name="func_ctx_reference-alias_1"/> ctx:reference-alias\#1
+```xquery
+ctx:reference-alias($reference as cts:reference) as xs:string
+```
+
+ returns a string alias describing a `cts:reference object
+
+###### params
+
+* $reference as `cts:reference`
+
+###### returns `xs:string`
+
 ##### <a name="func_ctx_resolve-reference-from-index_1"/> ctx:resolve-reference-from-index\#1
 ```xquery
 ctx:resolve-reference-from-index($node) as cts:reference*
@@ -275,41 +288,41 @@ ctx:resolve-reference-from-index($node) as cts:reference*
 
 ##### <a name="func_ctx_reference-query_1"/> ctx:reference-query\#1
 ```xquery
-ctx:reference-query($ref) as cts:query
+ctx:reference-query($reference as cts:reference) as cts:query
 ```
 
  constructs a `cts:query` matching fragments that contain a `cts:reference`
 
 ###### params
 
-* $ref as `cts:reference` or `element(cts:*-reference)`
+* $reference as `cts:reference`
 
 ###### returns `cts:query`
 
 ##### <a name="func_ctx_reference-query_2"/> ctx:reference-query\#2
 ```xquery
-ctx:reference-query($ref, $values as xs:anyAtomicType*) as cts:query
+ctx:reference-query($reference as cts:reference, $values as xs:anyAtomicType*) as cts:query
 ```
 
  constructs an `=` range query from a `cts:reference` and 1-or-more values
 
 ###### params
 
-* $ref as `cts:reference` or `element(cts:*-reference)`
+* $reference as `cts:reference`
 * $values as `xs:anyAtomicType*`
 
 ###### returns `cts:query`
 
 ##### <a name="func_ctx_reference-query_3"/> ctx:reference-query\#3
 ```xquery
-ctx:reference-query($ref, $operator as xs:string, $values as xs:anyAtomicType*) as cts:query
+ctx:reference-query($reference as cts:reference,  $operator as xs:string,  $values as xs:anyAtomicType*) as cts:query
 ```
 
  constructs a range query from a `cts:reference` and 1-or-more values
 
 ###### params
 
-* $ref as `cts:reference` or `element(cts:*-reference)`
+* $reference as `cts:reference`
 * $operator as `xs:string`
 * $values as `xs:anyAtomicType*`
 
