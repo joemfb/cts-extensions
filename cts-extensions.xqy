@@ -27,9 +27,8 @@ declare variable $ctx:numeric-scalar-types as xs:string+ := (
 
 declare %private variable $ctx:search-options := (
   "unfiltered", "score-zero",
-  if (fn:function-available("cts:unordered"))
-  then fn:function-lookup(xs:QName("cts:unordered"), 0)()
-  else ()
+  if (fn:not(fn:function-available("cts:unordered"))) then ()
+  else ( "format-xml", fn:function-lookup(xs:QName("cts:unordered"), 0)() )
 );
 
 (:
