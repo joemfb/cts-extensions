@@ -89,10 +89,14 @@ declare %private function ctx:query-term(
   $predicate as (function(item()) as xs:boolean)
 ) as xs:unsignedLong
 {
-  (: TODO: catch, throw custom error invalid predicate :)
-  fn:data(
-    fn:exactly-one(
-      $plan//qry:term-query[ $predicate(qry:annotation) ]/qry:key ))
+  try {
+    fn:data(
+      fn:exactly-one(
+        $plan//qry:term-query[ $predicate(qry:annotation) ]/qry:key ))
+  }
+  catch err:FORG0005 {
+    fn:error((), "INVALID_PREDICATE", "invalid term-query predicate for plan: " || xdmp:describe($plan, (), ()))
+  }
 };
 
 (: get a default value for the scalar-type :)
