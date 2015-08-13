@@ -655,10 +655,17 @@ declare function ctx:reference-query($reference as cts:reference, $values as xs:
   ctx:reference-query($reference, "=", $values)
 };
 
-declare %private function ctx:assert-equal($items, $base-items, $msg)
+declare %private function ctx:assert-supported($items, $supported-items, $msg)
 {
-  if ($items = $base-items) then ()
-  else fn:error((), "NOT_EQUAL", $msg)
+  if ($items = $supported-items) then ()
+  else fn:error((), "NOT_SUPPORTED", $msg)
+};
+
+declare %private function ctx:invert-query($operator as xs:string, $query as cts:query) as cts:query
+{
+  if ($operator eq "!=")
+  then cts:not-query($query)
+  else $query
 };
 
 declare %private function ctx:json-reference-query(
@@ -678,31 +685,34 @@ declare %private function ctx:json-reference-query(
         $values,
         $options)
     case cts:geospatial-json-property-pair-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:json-property-pair-geospatial-query(
-        $node/cts:parent-property,
-        $node/cts:latitude-property,
-        $node/cts:longitude-property,
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:json-property-pair-geospatial-query(
+          $node/cts:parent-property,
+          $node/cts:latitude-property,
+          $node/cts:longitude-property,
+          $values,
+          $options))
     )
     case cts:geospatial-json-property-child-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:json-property-child-geospatial-query(
-        $node/cts:parent-property,
-        $node/cts:child-property,
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:json-property-child-geospatial-query(
+          $node/cts:parent-property,
+          $node/cts:child-property,
+          $values,
+          $options))
     )
     case cts:geospatial-json-property-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:json-property-geospatial-query(
-        $node/cts:property,
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:json-property-geospatial-query(
+          $node/cts:property,
+          $values,
+          $options))
     )
     default return fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))')
 };
@@ -735,7 +745,7 @@ declare function ctx:reference-query(
         $values,
         $options)
     case cts:path-reference return
-      (: the combination of this closure and xdmp:with-namespaces creates problems with referencing the path :)
+      (: path variable extracted due to issues referencing from within xdmp:with-namespaces :)
       let $path := $node/cts:path-expression
       return
         xdmp:with-namespaces(
@@ -749,62 +759,64 @@ declare function ctx:reference-query(
         $options)
     (: NOTE: cts:geospatial-attribute-pair-reference(..)  instance of cts:geospatial-element-attribute-pair-reference :)
     case cts:geospatial-element-attribute-pair-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:element-attribute-pair-geospatial-query(
-        fn:QName($node/cts:parent-namespace-uri, $node/cts:parent-localname),
-        fn:QName($node/cts:latitude-namespace-uri, $node/cts:latitude-localname),
-        fn:QName($node/cts:longitude-namespace-uri, $node/cts:longitude-localname),
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:element-attribute-pair-geospatial-query(
+          fn:QName($node/cts:parent-namespace-uri, $node/cts:parent-localname),
+          fn:QName($node/cts:latitude-namespace-uri, $node/cts:latitude-localname),
+          fn:QName($node/cts:longitude-namespace-uri, $node/cts:longitude-localname),
+          $values,
+          $options))
     )
     case cts:geospatial-element-pair-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:element-pair-geospatial-query(
-        fn:QName($node/cts:parent-namespace-uri, $node/cts:parent-localname),
-        fn:QName($node/cts:latitude-namespace-uri, $node/cts:latitude-localname),
-        fn:QName($node/cts:longitude-namespace-uri, $node/cts:longitude-localname),
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:element-pair-geospatial-query(
+          fn:QName($node/cts:parent-namespace-uri, $node/cts:parent-localname),
+          fn:QName($node/cts:latitude-namespace-uri, $node/cts:latitude-localname),
+          fn:QName($node/cts:longitude-namespace-uri, $node/cts:longitude-localname),
+          $values,
+          $options))
     )
     case cts:geospatial-element-child-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:element-child-geospatial-query(
-        fn:QName($node/cts:parent-namespace-uri, $node/cts:parent-localname),
-        fn:QName($node/cts:namespace-uri, $node/cts:localname),
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:element-child-geospatial-query(
+          fn:QName($node/cts:parent-namespace-uri, $node/cts:parent-localname),
+          fn:QName($node/cts:namespace-uri, $node/cts:localname),
+          $values,
+          $options))
     )
     case cts:geospatial-element-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:element-geospatial-query(
-        fn:QName($node/cts:namespace-uri, $node/cts:localname),
-        $values,
-        $options)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      ctx:invert-query(
+        $operator,
+        cts:element-geospatial-query(
+          fn:QName($node/cts:namespace-uri, $node/cts:localname),
+          $values,
+          $options))
     )
     case cts:geospatial-path-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-
-      (: the combination of this closure and xdmp:with-namespaces creates problems with referencing the path :)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported geospatial reference query operator: " || $operator),
+      (: path variable extracted due to issues referencing from within xdmp:with-namespaces :)
       let $path := $node/cts:path-expression
       return
         xdmp:with-namespaces(
           ctx:db-path-namespaces(),
-          cts:path-geospatial-query($path, $values, $options))
+          ctx:invert-query(
+            $operator,
+            cts:path-geospatial-query($path, $values, $options)))
     )
     case cts:uri-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:document-query($values)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported cts:uri-reference query operator: " || $operator),
+      ctx:invert-query($operator, cts:document-query($values))
     )
     case cts:collection-reference return (
-      (: TODO: not-query for != ? :)
-      ctx:assert-equal($operator, "=", "unsupported operator: " || $operator),
-      cts:collection-query($values)
+      ctx:assert-supported($operator, ("=", "!="), "unsupported cts:collection-reference query operator: " || $operator),
+      ctx:invert-query($operator, cts:collection-query($values))
     )
     default return
       if (fn:type-available("cts:json-property-reference"))
