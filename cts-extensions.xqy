@@ -601,7 +601,7 @@ declare %private function ctx:json-reference-query(
        ctx:reference-query($reference, ctx:default-value-for-scalar-type($node/cts:scalar-type))
     case cts:geospatial-json-property-reference return
        ctx:reference-query($reference, ctx:default-value-for-scalar-type($node/cts:scalar-type))
-    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)')
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))')
 };
 
 (:~ constructs a `cts:query` matching fragments that contain a `cts:reference` :)
@@ -646,7 +646,7 @@ declare function ctx:reference-query($reference as cts:reference) as cts:query
     default return
       if (fn:type-available("cts:json-property-reference"))
       then ctx:json-reference-query($reference, $node)
-      else fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $reference)
+      else fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))
 };
 
 (:~ constructs an `=` range query from a `cts:reference` and 1-or-more values :)
@@ -704,7 +704,7 @@ declare %private function ctx:json-reference-query(
         $values,
         $options)
     )
-    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)')
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))')
 };
 
 (:~ constructs a range query from a `cts:reference` and 1-or-more values :)
@@ -809,5 +809,5 @@ declare function ctx:reference-query(
     default return
       if (fn:type-available("cts:json-property-reference"))
       then ctx:json-reference-query($reference, $node, $operator, $values, $options)
-      else fn:error(xs:QName("REFERENCE-QUERY-ERROR"),"Unknown Reference Type to create query", $reference)
+      else fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))
 };
