@@ -4,6 +4,8 @@ xquery version "1.0-ml";
  : experimental extensions to MarkLogic cts functionality.
  : Includes new query and lexicon types, and conversion functions for lexicon references.
  :
+ : Supports MarkLogic v7 or greater
+ :
  : &lt;em&gt;
  :   &lt;strong&gt;Warning: this is experimental software!&lt;/strong&gt;
  :   This module uses un-supported features of MarkLogic Server, which are subject to modification or removal without notice.
@@ -120,6 +122,73 @@ declare %private function ctx:default-value-for-scalar-type($scalar-type as xs:s
  :
  :)
 
+declare %private function ctx:node-test-for-format($format as xs:string?) as xs:string
+{
+  switch($format)
+  case "xml" return "element()"
+  case "json" return
+    if (fn:type-available("cts:json-property-reference"))
+    then "object-node()"
+    else fn:error((), "UNKNOWN_DOCUMENT_FORMAT", "unknown document format: " || $format)
+  case "binary" return "binary()"
+  case "text" return "text()"
+  case "any" return "document-node()" (: same term as node() :)
+  default return fn:error((), "UNKNOWN_DOCUMENT_FORMAT", "unknown document format: " || $format)
+};
+
+(: calculate the query term hash key of a document format :)
+declare %private function ctx:document-format-query-term($node-test as xs:string) as xs:unsignedLong
+{
+  ctx:query-term(
+    ctx:plan((), $node-test),
+    function($x) {
+      fn:starts-with($x, "document-format(") or
+      ($node-test eq "document-node()" and $x eq "doc-kind(document)")
+    })
+};
+
+(:~
+ : returns a `cts:query` matching documents of the specified format
+ : (`xml`, `json`, `binary`, `text`, or `any`)
+ :
+ : Note: ML 7 doesn't support 'json'
+ :)
+declare function ctx:document-format-query($format as xs:string?)
+{
+  ctx:document-format-query($format, (), ())
+};
+
+(:~
+ : returns a `cts:query` matching documents of the specified format
+ : (`xml`, `json`, `binary`, `text`, or `any`),
+ : constrained by `$query`
+ :
+ : Note: ML 7 doesn't support 'json'
+ :)
+declare function ctx:document-format-query($format as xs:string?, $query as cts:query?)
+{
+  ctx:document-format-query($format, $query, ())
+};
+
+(:~
+ : returns a `cts:query` matching documents of the specified format
+ : (`xml`, `json`, `binary`, `text`, or `any`),
+ : constrained by `$query`
+ :
+ : Note: ML 7 doesn't support 'json'
+ :)
+declare function ctx:document-format-query(
+  $format as xs:string?,
+  $query as cts:query?,
+  $weight as xs:double?
+) as cts:query
+{
+  cts:and-query((
+    $query,
+    cts:term-query(
+      ctx:document-format-query-term( ctx:node-test-for-format($format) ), $weight)))
+};
+
 (: calculate the query term hash key of a root QName :)
 declare %private function ctx:root-element-query-term($qname as xs:QName) as xs:unsignedLong
 {
@@ -137,8 +206,8 @@ declare function ctx:root-element-query($qname as xs:QName) as cts:query
 };
 
 (:~
- : returns a `cts:query` matching fragments with a given root QName, constrained
- : by the query param
+ : returns a `cts:query` matching fragments with a given root QName,
+ : constrained by `$query`
  :)
 declare function ctx:root-element-query($qname as xs:QName, $query as cts:query?) as cts:query
 {
