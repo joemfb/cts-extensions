@@ -95,7 +95,7 @@ declare %private function ctx:query-term(
         $plan//qry:term-query[ $predicate(qry:annotation) ]/qry:key ))
   }
   catch err:FORG0005 {
-    fn:error((), "INVALID_PREDICATE", "invalid term-query predicate for plan: " || xdmp:describe($plan, (), ()))
+    fn:error((), "INVALID-PREDICATE", "invalid term-query predicate for plan: " || xdmp:describe($plan, (), ()))
   }
 };
 
@@ -117,7 +117,7 @@ declare %private function ctx:default-value-for-scalar-type($scalar-type as xs:s
   case "point"             return cts:box(-90, -180, 90, 180)
   default return
     if ($scalar-type = $ctx:numeric-scalar-types) then 0
-    else fn:error((), "UNKNOWN_TYPE", $scalar-type)
+    else fn:error((), "UNKNOWN_TYPE", "unknown scalar type: " || $scalar-type)
 };
 
 (:
@@ -387,7 +387,7 @@ declare function ctx:root-QNames($arg) as xs:QName*
     else
       if ($arg instance of xs:QName)
       then cts:element-query($arg, cts:and-query(()))
-      else fn:error(xs:QName("UNKNOWN-TYPE"), (xdmp:describe($arg), $arg))
+      else fn:error(xs:QName("err:XPTY0004"), "XDMP-ARGTYPE", (xdmp:describe($arg, (), ()), "cts:query | xs:QName"))
   return ctx:root-QNames($query, ())
 };
 
@@ -477,7 +477,7 @@ declare %private function ctx:json-reference-alias(
     case cts:geospatial-json-property-child-reference return
       $node/cts:parent-property || "/" || $node/cts:child-property
     case cts:geospatial-json-property-reference return $node/cts:property
-    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)')
+    default return fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))')')
 };
 
 (:~ returns a string alias describing a `cts:reference object :)
@@ -508,7 +508,7 @@ declare function ctx:reference-alias($reference as cts:reference) as xs:string
     default return
       if (fn:type-available("cts:json-property-reference"))
       then ctx:json-reference-alias($reference, $node)
-      else fn:error((), "UNKNOWN-REFERENCE-TYPE", $reference)
+      else fn:error((), "UNKNOWN-REFERENCE-TYPE", xdmp:describe($reference, (), ()))')
 };
 
 (:~
@@ -583,7 +583,7 @@ declare function ctx:resolve-reference-from-index($node) as cts:reference*
         xdmp:with-namespaces(
           ctx:db-path-namespaces(),
           cts:geospatial-path-reference($node/db:path-expression, $options))
-      default return fn:error((),"Unknown Index Type", $node)
+      default return fn:error((), "UNKNOWN-INDEX-TYPE", xdmp:describe($node, (), ()))
 };
 
 declare %private function ctx:json-reference-query(
